@@ -73,14 +73,14 @@ class Anemometer {
         try
         {
             $data['sql'] = $this->report_obj->query();
-            $data['result'] = $this->report_obj->execute();    
+            $data['result'] = $this->report_obj->execute();
         }
         catch (Exception $e)
         {
             $this->alert($e->getMessage(),'alert-error');
             prettyprint($data['sql']);
         }
-        
+
         $data['columns'] = $this->report_obj->get_column_names();
         $data['permalink'] = site_url() . '?action=report&datasource=' . $data['datasource'] . '&' . $this->report_obj->get_search_uri();
 
@@ -143,7 +143,7 @@ class Anemometer {
         $this->set_search_defaults('report_defaults', array('dimension-ts_min_start', 'dimension-ts_min_end','checksum'));
 //        $data['ajax_request_url_table'] = site_url() . '?action=api&output=table&noheader=1&datasource=' . $data['datasource'] . '&' . $this->report_obj->get_search_uri();
 
-	$_GET['fact-order'] = get_var('plot_field') . ' DESC';
+    $_GET['fact-order'] = get_var('plot_field') . ' DESC';
         $data['ajax_table_request_url_base'] = site_url() . '?action=api&output=table&noheader=1&datasource=' . $data['datasource']. '&' . $this->report_obj->get_search_uri(array( 'dimension-ts_min' ));
         $data['table_url_time_start_param'] = 'dimension-ts_min_start';
         $data['table_url_time_end_param'] = 'dimension-ts_min_end';
@@ -225,7 +225,7 @@ class Anemometer {
             $data['hostname_max'] = get_var('dimension-hostname_max');
             $this->report_obj->set_pivot_values('dimension-pivot-hostname_max', $data['hosts']);
 
-            //		$data['fields = $this->report_obj->get_form_fields();
+            //      $data['fields = $this->report_obj->get_form_fields();
             // @todo remove
             $data['tables'] = $this->report_obj->get_tables();
             foreach ($data['tables'] as $t) {
@@ -306,14 +306,14 @@ class Anemometer {
 
         // get explain plan and extra info
         // TODO convert to ajax calls, just get the url
-	try
-	{
-        	$this->data_model->init_query_explainer($data['sample']);
-	}
-	catch ( Exception $e )
-	{
-		$data['explain_plan_error'] = $e->getMessage();
-	}
+    try
+    {
+            $this->data_model->init_query_explainer($data['sample']);
+    }
+    catch ( Exception $e )
+    {
+        $data['explain_plan_error'] = $e->getMessage();
+    }
         $data['explain_plan'] = $this->data_model->get_explain_for_sample($data['sample']);
         $data['visual_explain'] = $this->data_model->get_visual_explain($data['explain_plan']);
         $sample = $data['sample']['sample'];
@@ -402,7 +402,7 @@ class Anemometer {
      * from the session if possible.
      */
     private function get_auth_user() {
-        return isset($_SERVER['PHP_AUTH_USER']) ? $_SERVER['PHP_AUTH_USER'] : $_SESSION['current_review_user'];
+        return isset($_SERVER['PHP_AUTH_USER']) ? $_SERVER['PHP_AUTH_USER'] : (isset($_SESSION['current_review_user']) ? $_SESSION['current_review_user'] : '');
     }
 
     /**
