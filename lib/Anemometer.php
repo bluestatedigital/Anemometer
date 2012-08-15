@@ -141,9 +141,8 @@ class Anemometer {
         // now go get a url for the table results
         $this->init_report();
         $this->set_search_defaults('report_defaults', array('dimension-ts_min_start', 'dimension-ts_min_end','checksum'));
-//        $data['ajax_request_url_table'] = site_url() . '?action=api&output=table&noheader=1&datasource=' . $data['datasource'] . '&' . $this->report_obj->get_search_uri();
 
-    $_GET['fact-order'] = get_var('plot_field') . ' DESC';
+        $_GET['fact-order'] = get_var('plot_field') . ' DESC';
         $data['ajax_table_request_url_base'] = site_url() . '?action=api&output=table&noheader=1&datasource=' . $data['datasource']. '&' . $this->report_obj->get_search_uri(array( 'dimension-ts_min' ));
         $data['table_url_time_start_param'] = 'dimension-ts_min_start';
         $data['table_url_time_end_param'] = 'dimension-ts_min_end';
@@ -297,7 +296,7 @@ class Anemometer {
 
         // query and most recent sample
         $data['row'] = $this->data_model->get_query_by_checksum($checksum);
-        $data['sample'] = $this->data_model->get_query_samples($checksum, 1)->fetch_assoc();
+        $data['sample'] = $this->data_model->get_query_samples($checksum, 1)->fetch(PDO::FETCH_ASSOC);
 
         // review info
         $data['review_types'] = $this->data_model->get_review_types();

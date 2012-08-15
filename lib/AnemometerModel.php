@@ -17,7 +17,7 @@ class AnemometerModel {
 
     private $conf;
     private $datasource_name;
-    private $mysqli;
+    private $pdo;
     private $fact_table;
     private $dimension_table;
 
@@ -147,12 +147,9 @@ class AnemometerModel {
      * @return boolean      true if it exists, otherwise false
      */
     public function checksum_exists($checksum) {
-        $result = $this->mysqli->query("SELECT checksum FROM {$this->fact_table} WHERE checksum='" . $this->mysqli->real_escape_string($checksum) . "'");
-        check_mysql_error($result, $this->mysqli);
-        if ($result->num_rows) {
-            return true;
-        }
-        return false;
+        $result = $this->pdo->query("SELECT checksum FROM {$this->fact_table} WHERE checksum=" . $this->pdo->quote($checksum));
+        check_mysql_error($result, $this->pdo);
+        return ($result->fetchColumn() > 0);
     }
 
     /**
@@ -162,22 +159,22 @@ class AnemometerModel {
      * @param array $fields         Array of Key => Value pairs to update
      */
     public function update_query($checksum, $fields) {
-        $mysqli = $this->mysqli;
+        $pdo = $this->pdo;
         $sql = "UPDATE {$this->fact_table} SET ";
         $sql .= join(
                 ',', array_map(
-                        function ($x, $y) use ($mysqli) {
+                        function ($x, $y) use ($pdo) {
                             if ($y == 'NULL') {
                                 return "{$x} = NULL";
                             }
-                            return "{$x} = \"" . $mysqli->real_escape_string($y) . '"';
+                            return "{$x} = \"" . $pdo->quote($y) . '"';
                         }, array_keys($fields), array_values($fields)
                 )
         );
-        $sql .= " WHERE checksum='" . $this->mysqli->real_escape_string($checksum) . "'";
-        $res = $this->mysqli->query($sql);
+        $sql .= " WHERE checksum='" . $this->pdo->quote($checksum) . "'";
+        $res = $this->pdo->query($sql);
         // @todo ... fix this by making it a local method
-        check_mysql_error($res, $this->mysqli);
+        check_mysql_error($res, $this->pdo);
     }
 
     /**
@@ -187,9 +184,9 @@ class AnemometerModel {
      * @return mixed        The row of data, or null
      */
     public function get_query_by_checksum($checksum) {
-        $result = $this->mysqli->query("SELECT * FROM {$this->fact_table} WHERE checksum={$checksum}");
-        check_mysql_error($result, $this->mysqli);
-        if ($row = $result->fetch_assoc()) {
+        $result = $this->pdo->query("SELECT * FROM {$this->fact_table} WHERE checksum={$checksum}");
+        check_mysql_error($result, $this->pdo);
+        if ($row = $result->fetch(PDO::FETCH_ASSOC)) {
             return $row;
         }
         return null;
@@ -201,11 +198,11 @@ class AnemometerModel {
      * @param string $checksum      The checksum to look up
      * @param int $limit            The number of sample to get (default 1)
      * @param int $offset           The starting record number
-     * @return MySQLi_Result        The result handle
+     * @return PDOStatement        The result handle
      */
     public function get_query_samples($checksum, $limit = 1, $offset = 0) {
         $sql = "SELECT ts_min, ts_max, db_max, hostname_max, sample FROM {$this->dimension_table} WHERE checksum=$checksum ORDER BY ts_max DESC LIMIT {$limit} OFFSET {$offset}";
-        return $this->mysqli->query($sql);
+        return $this->pdo->query($sql);
     }
 
     /**
@@ -214,12 +211,8 @@ class AnemometerModel {
      */
     public function connect_to_datasource() {
         $ds = $this->conf['datasources'][$this->datasource_name];
-        //print "{$this->datasource_name}<br>";
-        //print_r($ds);
-        $this->mysqli = new mysqli($ds['host'], $ds['user'], $ds['password'], $ds['db'], $ds['port']);
-        if ($this->mysqli->connect_errno) {
-            throw new Exception($this->mysqli->connect_error);
-        }
+        $dsn = 'mysql:dbname=' . $ds['db'] . ';host=' . $ds['host'] . ';port=' . $ds['port'];
+        $this->pdo = new PDO($dsn, $ds['user'], $ds['password']);
     }
 
     /**

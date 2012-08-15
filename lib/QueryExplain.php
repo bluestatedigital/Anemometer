@@ -9,8 +9,8 @@
  *
  * The class is used as follows:
  *
- * $result = $mysqli->query("SELECT sample, hostname_max, database_max FROM query_review_history WHERE checksum=1");
- * $row = $result->fetch_assoc();
+ * $result = $pdo->query("SELECT sample, hostname_max, database_max FROM query_review_history WHERE checksum=1");
+ * $row = $result->fetchColumn();
  *
  * $explainer = new QueryExplain($callback, $row);
  * print $explainer->explain();
@@ -46,7 +46,7 @@ require "QueryTableParser.php";
 class QueryExplain {
 
     private $get_connection_func;
-    private $mysqli;
+    private $pdo;
     private $conf;
     private $query;
 
@@ -87,7 +87,7 @@ class QueryExplain {
      * @return string  the create table statements, or an error message
      */
     public function get_create() {
-        if (!isset($this->mysqli)) {
+        if (!isset($this->pdo)) {
             return null;
         }
 
@@ -98,8 +98,8 @@ class QueryExplain {
         }
         $create_tables = array();
         foreach ($tables as $table) {
-            $result = $this->mysqli->query("SHOW CREATE TABLE {$table}");
-            if (is_object($result) and $row = $result->fetch_array()) {
+            $result = $this->pdo->query("SHOW CREATE TABLE {$table}");
+            if (is_object($result) and $row = $result->fetch(PDO::FETCH_NUM)) {
                 $create_tables[] = $row[1];
             }
         }
@@ -114,7 +114,7 @@ class QueryExplain {
      * @return null
      */
     public function get_table_status() {
-        if (!isset($this->mysqli)) {
+        if (!isset($this->pdo)) {
             return null;
         }
 
@@ -122,8 +122,8 @@ class QueryExplain {
         $table_status = array();
         foreach ($tables as $table) {
             $sql = "SHOW TABLE STATUS LIKE '{$table}'";
-            $result = $this->mysqli->query($sql);
-            if (is_object($result) and $row = $result->fetch_assoc()) {
+            $result = $this->pdo->query($sql);
+            if (is_object($result) and $row = $result->fetch(PDO::FETCH_ASSOC)) {
                 $str = '';
                 foreach ($row as $key => $value) {
                     $str .= sprintf("%20s : %s\n", $key, $value);
@@ -140,7 +140,7 @@ class QueryExplain {
      * @return null|string The explain plan, or an error message
      */
     public function explain() {
-        if (!isset($this->mysqli)) {
+        if (!isset($this->pdo)) {
             return null;
         }
 
@@ -150,8 +150,8 @@ class QueryExplain {
 
         try {
             $result = $this->explain_query($this->query);
-            if ($this->mysqli->errno) {
-                return $this->mysqli->error . " (" . $this->mysqli->errno . ")";
+            if ($this->pdo->errerCode()) {
+                return $this->pdo->errorInfo() . " (" . $this->pdo->errorCode() . ")";
             }
 
             if (!$result) {
@@ -159,7 +159,7 @@ class QueryExplain {
             }
             return $this->result_as_table($result);
         } catch (Exception $e) {
-            return $e->getMessage();
+            throw $e;
         }
     }
 
@@ -178,41 +178,28 @@ class QueryExplain {
             }
         }
 
-        try {
-            $this->mysqli = new mysqli();
-            $this->mysqli->options(MYSQLI_OPT_CONNECT_TIMEOUT, self::$CONNECT_TIMEOUT);
-            $this->mysqli->real_connect(
-                    $this->conf['host'], $this->conf['user'], $this->conf['password'], $this->conf['db'], $this->conf['port']
-            );
-        } catch (Exception $e) {
-            throw new Exception(
-                    sprintf("Timeout connecting to mysql on %s:%s", $this->conf['host'], $this->conf['port'])
-            );
-        }
-
-        if ($this->mysqli->connect_errno || !$this->mysqli) {
-            throw new Exception("Connection error: " . $this->mysqli->connect_error . "(" . $this->mysqli->connect_errno . ")");
-        }
+        $dsn = 'mysql:dbname=' . $this->conf['db'] . ';host=' . $this->conf['host'] . ';port=' . $this->conf['port'];
+        $this->pdo = new PDO($dsn, $this->conf['user'], $this->conf['password']);
 
         return true;
     }
 
     /**
      * Execute EXPLAIN $query and return the result
-     * @return MySQLi_Result    the result handle
+     * @return PDOStatement    the result handle
      */
     private function explain_query() {
-		if (preg_match("/^\s*EXPLAIN/i", $this->query))
-		{
-			return $this->mysqli->query($this->query);
-		}
-        return $this->mysqli->query("EXPLAIN " . $this->query);
+        if (preg_match("/^\s*EXPLAIN/i", $this->query))
+        {
+            return $this->pdo->query($this->query);
+        }
+        return $this->pdo->query("EXPLAIN " . $this->query);
     }
 
     /**
-     * given a mysqli result handle, format a string to look like the mysql cli
+     * given a PDOStatement, format a string to look like the mysql cli
      * type tables
-     * @param   {MySQLi_Result}     $result     The result set handle
+     * @param   {PDO_Statement}     $result     The result set handle
      * @return {string}     The formatted result set string
      * */
     function result_as_table($result) {
@@ -220,7 +207,7 @@ class QueryExplain {
         $values = array();
         $columns = array();
 
-        while ($row = $result->fetch_assoc()) {
+        while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
             foreach ($row as $col_name => $value) {
                 $len = strlen($value);
                 if ($len > $sizes[$col_name]) {
@@ -246,7 +233,7 @@ class QueryExplain {
         $table .= self::make_rule($sizes, $column_order);
 
         foreach ($values as $row) {
-            //		print_r(array_values($row));
+            //      print_r(array_values($row));
             $table .= self::make_row($sizes, $row, $column_order);
             $table .= self::make_rule($sizes, $column_order);
         }

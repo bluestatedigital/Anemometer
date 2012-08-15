@@ -63,9 +63,9 @@
  *              // the filters here will make sure the data gets added to the right
  *              // part of the query, and not the WHERE clause like other fields.
  *              'group'     => 'group',
- *		'order'     => 'order',
- *		'having'    => 'having',
- *		'limit'     => 'limit',
+ *      'order'     => 'order',
+ *      'having'    => 'having',
+ *      'limit'     => 'limit',
  *          ),
  *
  *          'dimension' => array(
@@ -187,13 +187,8 @@ class MySQLTableReport {
      */
     private function connect_to_datasource() {
         $ds = $this->datasource;
-        $this->mysqli = new mysqli();
-        $this->mysqli->options(MYSQLI_OPT_CONNECT_TIMEOUT, self::$CONNECT_TIMEOUT);
-        $this->mysqli->real_connect($ds['host'], $ds['user'], $ds['password'], $ds['db'], $ds['port']);
-
-        if ($this->mysqli->connect_errno) {
-            throw new Exception($this->mysqli->connect_error);
-        }
+        $dsn = 'mysql:dbname=' . $ds['db'] . ';host=' . $ds['host'] . ';port=' . $ds['port'];
+        $this->pdo = new PDO($dsn, $ds['user'], $ds['password']);
     }
 
     /**
@@ -288,20 +283,18 @@ class MySQLTableReport {
             }
         }
 
-        $values = array_merge(array(str_repeat('s', count($tables) + 1), &$this->datasource['db']), $tables);
+        $values = array_merge(array(&$this->datasource['db']), $tables);
 
         $sql = "SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME IN (" . join(',', array_map(function ($x) {
                                     return '?';
                                 }, $tables)) . ")";
 
-        $stmt = $this->mysqli->prepare($sql);
-        call_user_func_array(array($stmt, 'bind_param'), $values);
-        $stmt->execute();
-        $stmt->bind_result($table_name, $col_name);
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($values);
 
         $columns = array();
-        while ($stmt->fetch()) {
-            $columns[] = "{$col_name}";
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $columns[] = $row['COLUMN_NAME'];
         }
 
         return $columns;
@@ -318,9 +311,9 @@ class MySQLTableReport {
      */
     public function get_distinct_values($table, $colname) {
         //print "getting distinct $colname from $table<br>";
-        $result = $this->mysqli->query("SELECT DISTINCT `{$colname}` FROM `{$table}`");
+        $result = $this->pdo->query("SELECT DISTINCT `{$colname}` FROM `{$table}`");
         $values = array();
-        while ($row = $result->fetch_array()) {
+        while ($row = $result->fetch(PDO::FETCH_NUM)) {
             $values[] = $row[0];
         }
         return $values;
@@ -400,7 +393,6 @@ class MySQLTableReport {
      * @return \MySQLTableReport
      */
     public function group($col_name, $var_name, $expression) {
-        //print "called group with $expression<br>";
         $this->group = $expression;
         return $this;
     }
@@ -491,7 +483,7 @@ class MySQLTableReport {
      */
     public function pivot($col_name, $var_name, $expression) {
         if (!isset($expression))
-		{
+        {
             return $this;
         }
 
@@ -500,25 +492,25 @@ class MySQLTableReport {
         $col_name = preg_replace("/pivot-/", "", $col_name);
         $values = $this->get_pivot_values($var_name);
 
-		foreach ($values as $v) {
-			
-			if (isset($this->report['custom_fields'][$expression]))
-			{
-				// for custom fields, we need to do some regex trickery.  This should work in many cases
-				// but there might be some strange situations where it doesn't.
-				// mostly where it doesn't work is where a pivot doesn't make sense.
-				$field = preg_replace("/(SUM|MIN|MAX|AVG|COUNT)\(([\.\w]+)\)/", "\\1(IF({$col_name}='".addslashes($v)."',\\2,0))" ,$this->report['custom_fields'][$expression]);
-				if ($field)
-				{
-					$columns[] = array($field, $v, null);
-				}
-			}
-			else
-			{
-				// default behavior for most columns
-				$columns[] = array("IF({$col_name}='" . addslashes($v) . "',{$expression},0)", $v, 'SUM');
-			}
-		}
+        foreach ($values as $v) {
+
+            if (isset($this->report['custom_fields'][$expression]))
+            {
+                // for custom fields, we need to do some regex trickery.  This should work in many cases
+                // but there might be some strange situations where it doesn't.
+                // mostly where it doesn't work is where a pivot doesn't make sense.
+                $field = preg_replace("/(SUM|MIN|MAX|AVG|COUNT)\(([\.\w]+)\)/", "\\1(IF({$col_name}='".addslashes($v)."',\\2,0))" ,$this->report['custom_fields'][$expression]);
+                if ($field)
+                {
+                    $columns[] = array($field, $v, null);
+                }
+            }
+            else
+            {
+                // default behavior for most columns
+                $columns[] = array("IF({$col_name}='" . addslashes($v) . "',{$expression},0)", $v, 'SUM');
+            }
+        }
 
         return $columns;
     }
@@ -560,13 +552,13 @@ class MySQLTableReport {
     }
 
     public function reldate($col_name, $var_name, $expression, $op) {
-		if (substr(strtolower($expression),0,3) == 'now') {
-			$expression = date("Y-m-d H:i:s");
-		}
-		if (preg_match('/^\s*([+-])?(\d+)\s(\w+)$/', $expression, $match)) {
-			$expression = date("Y-m-d H:i:s", strtotime( $expression));
-		}
-		return array( array($col_name, $var_name, $expression, $op) );
+        if (substr(strtolower($expression),0,3) == 'now') {
+            $expression = date("Y-m-d H:i:s");
+        }
+        if (preg_match('/^\s*([+-])?(\d+)\s(\w+)$/', $expression, $match)) {
+            $expression = date("Y-m-d H:i:s", strtotime( $expression));
+        }
+        return array( array($col_name, $var_name, $expression, $op) );
     }
 
     /**
@@ -765,9 +757,9 @@ class MySQLTableReport {
             foreach ($this->form_fields[$alias] as $field => $config) {
                 $var_name = "{$alias}-{$field}";
                 $col_name = "{$alias}.{$field}";
-				if (isset($this->report['custom_fields'][$field])) {
-					$col_name = $this->report['custom_fields'][$field];
-				}
+                if (isset($this->report['custom_fields'][$field])) {
+                    $col_name = $this->report['custom_fields'][$field];
+                }
                 $functions = preg_split("/\|/", $config);
                 $args = array(array($col_name, $var_name, $values[$var_name]));
                 //print "checking fields {$var_name}=". $args[0][1]. "<br>";
@@ -878,7 +870,7 @@ class MySQLTableReport {
         // GROUP / ORDER / HAVING / LIMIT
         $aditional_clauses = array(
             'GROUP BY' => $this->group,
-			'HAVING' => $this->having,
+            'HAVING' => $this->having,
             'ORDER BY' => $this->order,
             'LIMIT' => $this->limit
         );
@@ -917,35 +909,29 @@ class MySQLTableReport {
             $sql = $this->query();
         }
 
-        $result = $this->mysqli->query($sql);
-        $this->check_mysql_error($result);
-
-        $result_data = array();
-        while ($row = $result->fetch_assoc()) {
-            $result_data[] = $row;
-        }
-        $result->free();
+        $result = $this->pdo->query($sql);
+        $result_data = $result->fetchAll(PDO::FETCH_ASSOC);
+        unset($result);
         return $result_data;
     }
 
     /**
-     * check the result of a mysqli query and throw and excepton if there was an error
+     * check the result of a query and throw and excepton if there was an error
      *
-     * @param MySQLi_Result $result  handle to the result set
+     * @param PDOStatement $result  handle to the result set
      * @throws Exception if there was a query error
      */
     private function check_mysql_error($result)
     {
-        if ($this->mysqli->errno or !$result)
-        {
-            throw new Exception($this->mysqli->error." (".$this->mysqli->errno.")");
+        if ($this->pdo->errorCode() or !$result) {
+            throw new Exception($this->pdo->errorInfo()." (".$this->pdo->errorCode().")");
         }
     }
 
     /**
      * return a urlencoded string of parameters that were used in this report.
      *
-     * @param array	 $exceptions		List of variables names not to append
+     * @param array  $exceptions        List of variables names not to append
      * @return string   The url string
      */
     public function get_search_uri($exceptions = null) {
@@ -961,10 +947,10 @@ class MySQLTableReport {
                 $col_name = "{$alias}.{$field}";
                 $value = get_var($var_name);
 
-				if (isset($exceptions) and in_array($var_name, $exceptions))
-				{
-					continue;
-				}
+                if (isset($exceptions) and in_array($var_name, $exceptions))
+                {
+                    continue;
+                }
 
                 // we have to execute some of the functions here because
                 // the actual form fields may differ from the defined field name
@@ -1005,5 +991,3 @@ class MySQLTableReport {
         return join("&", $params);
     }
 }
-
-?>

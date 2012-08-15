@@ -37,7 +37,7 @@ function site_url()
 {
     if (isset($_SERVER['HTTPS']))
     {
-	$proto = 'https://';
+    $proto = 'https://';
     }
     else
     {
@@ -66,13 +66,10 @@ function prettyprint($string)
  * @param MySQLi_Result $result
  * @param MySQLi $mysqli
  */
-function check_mysql_error($result, $mysqli)
+function check_mysql_error($result, $pdo)
 {
-    if (!$result)
-    {
+    if (!$result) {
         // @TODO put markup in a view
-        die("<div class=\"alert alert-error\"><strong>".$mysqli->errno."</strong><br>".$mysqli->error ."</div>");
+        die("<div class=\"alert alert-error\"><strong>".$pdo->errorCode()."</strong><br>".print_r($pdo->errorInfo(), true) ."</div>");
     }
 }
-
-?>
