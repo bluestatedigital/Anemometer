@@ -147,13 +147,13 @@ class AnemometerModel {
      * @return boolean      true if it exists, otherwise false
      */
     public function checksum_exists($checksum) {
-        $result = $this->pdo->query("SELECT checksum FROM {$this->fact_table} WHERE checksum=" . $this->pdo->quote($checksum));
+        $result = $this->pdo->query("SELECT checksum FROM `{$this->fact_table}` WHERE checksum=" . $this->pdo->quote($checksum));
         check_mysql_error($result, $this->pdo);
         return ($result->fetchColumn() > 0);
     }
 
     /**
-     * Preform an update query on the given checksum
+     * Perform an update query on the given checksum
      *
      * @param string $checksum      The checksum to update
      * @param array $fields         Array of Key => Value pairs to update
@@ -184,7 +184,7 @@ class AnemometerModel {
      * @return mixed        The row of data, or null
      */
     public function get_query_by_checksum($checksum) {
-        $result = $this->pdo->query("SELECT * FROM {$this->fact_table} WHERE checksum={$checksum}");
+        $result = $this->pdo->query("SELECT * FROM `{$this->fact_table}` WHERE checksum={$checksum}");
         check_mysql_error($result, $this->pdo);
         if ($row = $result->fetch(PDO::FETCH_ASSOC)) {
             return $row;
@@ -201,7 +201,7 @@ class AnemometerModel {
      * @return PDOStatement        The result handle
      */
     public function get_query_samples($checksum, $limit = 1, $offset = 0) {
-        $sql = "SELECT ts_min, ts_max, db_max, hostname_max, sample FROM {$this->dimension_table} WHERE checksum=$checksum ORDER BY ts_max DESC LIMIT {$limit} OFFSET {$offset}";
+        $sql = "SELECT ts_min, ts_max, db_max, hostname_max, sample FROM `{$this->dimension_table}` WHERE checksum=$checksum ORDER BY ts_max DESC LIMIT {$limit} OFFSET {$offset}";
         return $this->pdo->query($sql);
     }
 
@@ -262,7 +262,7 @@ class AnemometerModel {
             fwrite($pipes[0], $input);
             fclose($pipes[0]);
 
-            $result = stream_get_contents($pipes[1]).stream_get_contents($pipe[2]);
+            $result = stream_get_contents($pipes[1]).stream_get_contents($pipes[2]);
             fclose($pipes[1]);
             fclose($pipes[2]);
 
